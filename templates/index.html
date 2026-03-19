@@ -151,16 +151,10 @@
             </p>
 
             <form id="uploadForm" method="POST" action="{{ url_for('predict_csv') }}" enctype="multipart/form-data">
-                <!-- CSRF Token dari WTForms -->
-                {{ form_upload.hidden_tag() }}
-
                 <div>
                     <label for="file" class="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">File CSV</label>
-                    <input type="file" id="file" name="file" accept=".csv"
-                        class="w-full bg-surface-3 border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-gray-300 file:mr-3 focus:outline-none focus:ring-2 focus:ring-brand/40 transition {% if form_upload.file.errors %}field-error{% endif %}">
-                    {% if form_upload.file.errors %}
-                    <p class="text-red-400 text-[11px] mt-1">{{ form_upload.file.errors[0] }}</p>
-                    {% endif %}
+                    <input type="file" id="file" name="file" accept=".csv" required
+                        class="w-full bg-surface-3 border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-gray-300 file:mr-3 focus:outline-none focus:ring-2 focus:ring-brand/40 transition">
                 </div>
                 <button type="submit"
                     class="w-full mt-4 py-2.5 rounded-lg bg-transparent border border-white/[0.08] hover:border-brand/50 hover:bg-brand/5 text-brand text-sm font-semibold transition-all flex items-center justify-center gap-2">

@@ -252,32 +252,34 @@ class TestFormPrediksiManual(BaseTestCase):
 
 
 class TestFormUploadCSV(BaseTestCase):
-    """Test WTForms FormUploadCSV — validasi file upload."""
+    """Test validasi upload CSV (menggunakan request.files langsung)."""
 
-    def test_form_tanpa_file(self):
-        """Form tanpa file harus gagal validasi."""
-        with app.test_request_context(
-            "/upload", method="POST", content_type="multipart/form-data"
-        ):
-            form = FormUploadCSV()
-            self.assertFalse(form.validate())
-            self.assertIn("file", form.errors)
+    def test_upload_tanpa_file_menampilkan_error(self):
+        """Request tanpa file harus menampilkan pesan error."""
+        resp = self.client.post("/upload", data={}, content_type="multipart/form-data")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode()
+        self.assertIn("wajib dipilih", html)
 
-    def test_form_file_bukan_csv(self):
-        """File dengan ekstensi bukan .csv harus gagal validasi."""
-        from werkzeug.datastructures import FileStorage
-
-        fake_file = FileStorage(
-            stream=io.BytesIO(b"data"), filename="test.txt", content_type="text/plain"
+    def test_upload_nama_file_kosong_menampilkan_error(self):
+        """File dengan nama kosong harus menampilkan pesan error."""
+        data = {"file": (io.BytesIO(b""), "")}
+        resp = self.client.post(
+            "/upload", data=data, content_type="multipart/form-data"
         )
-        with app.test_request_context(
-            "/upload",
-            method="POST",
-            content_type="multipart/form-data",
-            data={"file": fake_file},
-        ):
-            form = FormUploadCSV()
-            self.assertFalse(form.validate())
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode()
+        self.assertIn("wajib dipilih", html)
+
+    def test_upload_file_bukan_csv_menampilkan_error(self):
+        """File bukan CSV (.txt) harus menampilkan error validasi."""
+        data = {"file": (io.BytesIO(b"konten"), "test.txt")}
+        resp = self.client.post(
+            "/upload", data=data, content_type="multipart/form-data"
+        )
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode()
+        self.assertIn("Hanya file CSV", html)
 
 
 class TestHalamanUtama(BaseTestCase):
@@ -433,23 +435,6 @@ class TestUploadCSV(BaseTestCase):
         html = resp.data.decode()
         self.assertIn("tidak memiliki kolom", html)
 
-    def test_upload_tanpa_file_menampilkan_error(self):
-        """Request tanpa file harus menampilkan pesan error WTForms."""
-        resp = self.client.post("/upload", data={}, content_type="multipart/form-data")
-        self.assertEqual(resp.status_code, 200)
-        html = resp.data.decode()
-        self.assertIn("Error", html)
-
-    def test_upload_file_bukan_csv_menampilkan_error(self):
-        """File bukan CSV (.txt) harus menampilkan error validasi."""
-        data = {"file": (io.BytesIO(b"konten"), "test.txt")}
-        resp = self.client.post(
-            "/upload", data=data, content_type="multipart/form-data"
-        )
-        self.assertEqual(resp.status_code, 200)
-        html = resp.data.decode()
-        self.assertIn("Error", html)
-
     def test_upload_satu_baris_csv(self):
         """CSV dengan 1 baris data harus bisa diproses."""
         csv_satu = (
@@ -546,15 +531,15 @@ class TestCSRFErrorHandling(unittest.TestCase):
         # Harus ada Error, tapi bukan pesan tentang csrf_token
         self.assertIn("Error", html)
 
-    def test_upload_csv_csrf_invalid(self):
-        """POST /upload tanpa CSRF token harus menampilkan error validasi."""
+    def test_upload_csv_tanpa_csrf_tetap_berhasil(self):
+        """POST /upload tanpa CSRF token harus tetap berhasil (upload tidak pakai WTForms)."""
         data = {"file": buat_file_csv(CSV_VALID)}
         resp = self.client.post(
             "/upload", data=data, content_type="multipart/form-data"
         )
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode()
-        self.assertIn("Error", html)
+        self.assertIn("Hasil Prediksi CSV", html)
 
 
 class TestEntryPoint(unittest.TestCase):

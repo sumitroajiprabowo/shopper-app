@@ -215,9 +215,10 @@ def predict():
 def predict_csv():
     """
     Menangani prediksi massal dari file CSV yang di-upload.
-    WTForms memvalidasi file sebelum diproses.
+    Menggunakan request.files langsung (tanpa WTForms) untuk kompatibilitas
+    maksimal dengan Azure App Service dan berbagai proxy/server.
     """
-    # Buat instance form dengan data dari request
+    # Buat instance form untuk render template
     form_prediksi = FormPrediksiManual()
     form_upload = FormUploadCSV()
 
@@ -230,25 +231,34 @@ def predict_csv():
             csv_error="Error: Model tidak siap. Periksa log server.",
         )
 
-    # Validasi form upload menggunakan WTForms validators
-    if not form_upload.validate_on_submit():
-        # Kumpulkan semua pesan error
-        error_messages = []
-        for field_name, errors in form_upload.errors.items():
-            if field_name == "csrf_token":
-                continue
-            for err in errors:
-                error_messages.append(err)
-        pesan_error = "; ".join(error_messages) if error_messages else "Validasi gagal"
+    # Validasi: pastikan ada file dalam request
+    if "file" not in request.files:
         return render_template(
             "index.html",
             form_prediksi=form_prediksi,
             form_upload=form_upload,
-            csv_error=f"Error: {pesan_error}",
+            csv_error="Error: File CSV wajib dipilih",
         )
 
-    # Ambil file dari form WTForms (sudah tervalidasi)
-    file = form_upload.file.data
+    file = request.files["file"]
+
+    # Validasi: pastikan file memiliki nama (bukan kosong)
+    if file.filename == "":
+        return render_template(
+            "index.html",
+            form_prediksi=form_prediksi,
+            form_upload=form_upload,
+            csv_error="Error: File CSV wajib dipilih",
+        )
+
+    # Validasi: pastikan file berekstensi .csv
+    if not file.filename.endswith(".csv"):
+        return render_template(
+            "index.html",
+            form_prediksi=form_prediksi,
+            form_upload=form_upload,
+            csv_error="Error: Hanya file CSV yang diperbolehkan",
+        )
 
     try:
         # Baca file CSV menjadi DataFrame
