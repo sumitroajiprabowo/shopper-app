@@ -1,24 +1,68 @@
+<!--
+============================================================
+Template Utama Aplikasi ShopPredict (index.html)
+============================================================
+Template Jinja2 ini menampilkan halaman tunggal (single-page)
+dengan 2 fitur utama:
+
+1. Form Prediksi Manual (Logistic Regression)
+   - 3 input numerik: PageValues, ExitRates, ProductRelated_Duration
+   - 3 dropdown: Month, Browser, TrafficType
+   - Hasil: kartu warna hijau/merah + progress bar Tingkat Keyakinan Model
+
+2. Form Upload CSV (Random Forest / LR / Komparasi)
+   - Input file CSV (17 kolom)
+   - Radio button pemilihan model (hidden peer pattern)
+   - Hasil: ringkasan statistik + tabel data + link download
+
+Variabel dari server (app.py):
+- form_prediksi  : FormPrediksiManual — form input manual
+- form_upload     : FormUploadCSV — form upload CSV
+- results         : dict — hasil prediksi manual (key: "lr")
+- error           : str — pesan error prediksi manual
+- csv_results     : list[dict] — baris-baris hasil prediksi CSV
+- csv_columns     : list[str] — nama kolom untuk header tabel
+- csv_summary     : dict — ringkasan (total, rf_beli, rf_tidak, lr_beli, lr_tidak)
+- csv_error       : str — pesan error upload CSV
+- model_choice    : str — model yang dipilih ("rf"/"lr"/"both")
+
+Teknologi UI:
+- Tailwind CSS via CDN (dark mode default)
+- Font Awesome 6.5 untuk ikon
+- Inter font dari Google Fonts
+- Custom CSS untuk spinner input number, file button, scrollbar
+============================================================
+-->
 <!DOCTYPE html>
+<!-- Bahasa Indonesia, dark mode aktif secara default -->
 <html lang="id" class="dark">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ShopPredict — Prediksi Niat Beli Pelanggan</title>
+
+    <!-- Tailwind CSS via CDN — framework utilitas CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
+        // Konfigurasi Tailwind: dark mode, custom colors, animasi
         tailwind.config = {
-            darkMode: 'class',
+            darkMode: 'class',  // Dark mode diaktifkan via class "dark" di <html>
             theme: {
                 extend: {
+                    // Font Inter sebagai font utama
                     fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
                     colors: {
+                        // Warna brand (ungu) untuk tombol, link, aksen
                         brand: { DEFAULT: '#6366f1', light: '#818cf8', dark: '#4f46e5' },
+                        // 5 level warna surface untuk membuat hierarki kedalaman
+                        // surface-1 (paling gelap/background) → surface-5 (paling terang)
                         surface: { 1: '#111113', 2: '#19191b', 3: '#222225', 4: '#2b2b2f', 5: '#35353a' },
                     },
+                    // Animasi untuk elemen yang baru muncul (hasil prediksi)
                     animation: {
-                        'fade-in': 'fadeIn 0.4s ease-out',
-                        'slide-up': 'slideUp 0.4s ease-out',
+                        'fade-in': 'fadeIn 0.4s ease-out',    // Muncul perlahan
+                        'slide-up': 'slideUp 0.4s ease-out',  // Geser dari bawah ke atas
                     },
                     keyframes: {
                         fadeIn: { from: { opacity: '0' }, to: { opacity: '1' } },
@@ -28,11 +72,18 @@
             }
         }
     </script>
+
+    <!-- Font Awesome — ikon untuk tombol dan header -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <!-- Google Fonts Inter — font sans-serif yang bersih -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <style>
+        /* Tampilkan spinner (panah atas/bawah) di input number */
         input[type="number"]::-webkit-inner-spin-button,
         input[type="number"]::-webkit-outer-spin-button { opacity: 1; }
+
+        /* Styling tombol "Browse" di input file */
         input[type="file"]::file-selector-button {
             background: #6366f1; color: white; border: none;
             padding: 6px 14px; border-radius: 6px; font-size: 13px;
@@ -40,99 +91,214 @@
             transition: background 0.2s;
         }
         input[type="file"]::file-selector-button:hover { background: #818cf8; }
+
+        /* Scrollbar horizontal untuk tabel CSV yang lebar */
         .table-scroll::-webkit-scrollbar { height: 6px; }
         .table-scroll::-webkit-scrollbar-track { background: #222225; border-radius: 3px; }
         .table-scroll::-webkit-scrollbar-thumb { background: #35353a; border-radius: 3px; }
+
+        /* Styling field yang error — border merah */
         .field-error { border-color: #ef4444 !important; }
         .field-error:focus { box-shadow: 0 0 0 3px rgba(239,68,68,0.2) !important; }
     </style>
 </head>
 
+<!-- Body: background gelap, teks abu-abu terang, layout flex kolom -->
 <body class="bg-surface-1 text-gray-200 font-sans min-h-screen flex flex-col">
 
-    <!-- Navbar -->
+    <!--
+    ============================================================
+    Navbar — Bar navigasi atas (sticky)
+    Berisi logo, nama aplikasi, dan badge versi ML v2.0
+    ============================================================
+    -->
     <nav class="sticky top-0 z-50 bg-surface-2/80 backdrop-blur-xl border-b border-white/5">
-        <div class="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
+        <div class="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
+            <!-- Logo gradien ungu -->
             <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand to-purple-500 flex items-center justify-center text-white text-sm">
                 <i class="fas fa-chart-line"></i>
             </div>
             <span class="font-semibold text-sm text-white">ShopPredict</span>
-            <span class="text-[11px] px-2 py-0.5 rounded-md bg-brand/10 text-brand font-medium">ML v1.0</span>
+            <!-- Badge versi — menandakan upgrade ke dual model -->
+            <span class="text-[11px] px-2 py-0.5 rounded-md bg-brand/10 text-brand font-medium">ML v2.0</span>
         </div>
     </nav>
 
-    <!-- Main -->
-    <main class="flex-1 max-w-3xl w-full mx-auto px-4 py-8">
+    <!-- Konten Utama -->
+    <main class="flex-1 max-w-4xl w-full mx-auto px-4 py-8">
 
-        <!-- Hero -->
+        <!--
+        ============================================================
+        Hero Section — Judul dan deskripsi singkat aplikasi
+        ============================================================
+        -->
         <div class="text-center mb-8">
             <h1 class="text-2xl font-bold text-white mb-2">Prediksi Niat Beli Pelanggan</h1>
             <p class="text-gray-400 text-sm max-w-lg mx-auto leading-relaxed">
-                Analisis perilaku pengunjung website untuk memprediksi kemungkinan pembelian menggunakan machine learning.
+                Input manual menggunakan Logistic Regression (8 fitur).
+                Upload CSV untuk Random Forest (25 fitur), Logistic Regression, atau komparasi keduanya.
             </p>
         </div>
 
-        <!-- Manual Prediction Card -->
+        <!--
+        ============================================================
+        Jinja2 Macros — Template helper yang bisa di-reuse
+        ============================================================
+        -->
+
+        {#
+        Macro render_number: Membuat input field numerik dengan styling konsisten
+        Parameter:
+          - field: WTForms FloatField object
+          - placeholder: teks contoh di dalam input
+          - min_val/max_val: batas validasi HTML5
+          - step: langkah increment (default "any" untuk desimal)
+        Fitur:
+          - Label uppercase kecil di atas input
+          - Border merah jika ada error validasi
+          - Pesan error di bawah input
+        #}
+        {% macro render_number(field, placeholder="", min_val=None, max_val=None, step="any") %}
+        <div>
+            <label for="{{ field.id }}" class="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">{{ field.label.text }}</label>
+            <input type="number" step="{{ step }}"
+                id="{{ field.id }}" name="{{ field.name }}"
+                {% if min_val is not none %}min="{{ min_val }}"{% endif %}
+                {% if max_val is not none %}max="{{ max_val }}"{% endif %}
+                placeholder="{{ placeholder }}"
+                value="{{ field.data if field.data is not none and field.data != '' else '' }}"
+                class="w-full bg-surface-3 border border-white/[0.06] rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand transition {% if field.errors %}field-error{% endif %}">
+            {% if field.errors %}<p class="text-red-400 text-[11px] mt-1">{{ field.errors[0] }}</p>{% endif %}
+        </div>
+        {% endmacro %}
+
+        {#
+        Macro render_select: Membuat dropdown select dengan styling konsisten
+        Parameter:
+          - field: WTForms SelectField object
+        Fitur:
+          - Label uppercase kecil di atas select
+          - Menampilkan opsi yang sudah dipilih (selected) jika ada
+        #}
+        {% macro render_select(field) %}
+        <div>
+            <label for="{{ field.id }}" class="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">{{ field.label.text }}</label>
+            <select id="{{ field.id }}" name="{{ field.name }}"
+                class="w-full bg-surface-3 border border-white/[0.06] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand transition">
+                {% for value, label in field.choices %}
+                <option value="{{ value }}" {% if field.data == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endmacro %}
+
+        <!--
+        ============================================================
+        KARTU 1: Form Prediksi Manual (Logistic Regression Only)
+        ============================================================
+        Form ini hanya menggunakan model LR karena hanya 6 field input
+        yang digunakan (dari 8 fitur LR). 2 fitur sisanya di-default
+        oleh server (VisitorType=New_Visitor, Weekend=False).
+
+        Layout:
+        - Baris 1 (Metrik Halaman): PageValues | ExitRates | ProductRelated_Duration
+        - Baris 2 (Profil Pengunjung): Month | Browser | TrafficType
+        - Tombol submit full-width
+        -->
         <div class="bg-surface-2 border border-white/[0.06] rounded-xl p-6 mb-4 animate-fade-in">
-            <h2 class="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+            <h2 class="text-sm font-semibold text-white mb-1 flex items-center gap-2">
                 <i class="fas fa-sliders-h text-brand text-xs"></i>
                 Prediksi Manual
             </h2>
+            <p class="text-xs text-gray-500 mb-4">Logistic Regression — 8 fitur pilihan</p>
 
+            <!-- Form dikirim ke POST /predict -->
             <form id="prediksiForm" method="POST" action="{{ url_for('predict') }}">
-                <!-- CSRF Token dari WTForms -->
-                {{ form_prediksi.hidden_tag() }}
+                {{ form_prediksi.hidden_tag() }}  {# CSRF token (dinonaktifkan tapi tetap di-render) #}
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {# Macro untuk render field dengan error #}
-                    {% macro render_field(field, placeholder="", min_val=None, max_val=None, colspan=false) %}
-                    <div{% if colspan %} class="sm:col-span-2"{% endif %}>
-                        <label for="{{ field.id }}" class="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">
-                            {{ field.label.text }}
-                        </label>
-                        <input type="number" step="any"
-                            id="{{ field.id }}" name="{{ field.name }}"
-                            {% if min_val is not none %}min="{{ min_val }}"{% endif %}
-                            {% if max_val is not none %}max="{{ max_val }}"{% endif %}
-                            placeholder="{{ placeholder }}"
-                            value="{{ field.data if field.data is not none and field.data != '' else '' }}"
-                            class="w-full bg-surface-3 border border-white/[0.06] rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand transition {% if field.errors %}field-error{% endif %}">
-                        {% if field.errors %}
-                        <p class="text-red-400 text-[11px] mt-1">{{ field.errors[0] }}</p>
-                        {% endif %}
-                    </div>
-                    {% endmacro %}
-
-                    {{ render_field(form_prediksi.BounceRates, placeholder="0.02", min_val=0, max_val=1) }}
-                    {{ render_field(form_prediksi.ExitRates, placeholder="0.04", min_val=0, max_val=1) }}
-                    {{ render_field(form_prediksi.PageValues, placeholder="12.5", min_val=0) }}
-                    {{ render_field(form_prediksi.ProductRelated, placeholder="5", min_val=0) }}
-                    {{ render_field(form_prediksi.ProductRelated_Duration, placeholder="120", min_val=0) }}
-                    {{ render_field(form_prediksi.Administrative, placeholder="2", min_val=0) }}
-                    {{ render_field(form_prediksi.Administrative_Duration, placeholder="30", min_val=0, colspan=true) }}
+                <!-- Baris 1: 3 Input Numerik (Metrik Halaman) -->
+                <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-widest mb-2 mt-1">Metrik Halaman</p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                    {{ render_number(form_prediksi.PageValues, placeholder="12.5", min_val=0) }}
+                    {{ render_number(form_prediksi.ExitRates, placeholder="0.04", min_val=0, max_val=1) }}
+                    {{ render_number(form_prediksi.ProductRelated_Duration, placeholder="200", min_val=0) }}
                 </div>
 
+                <!-- Baris 2: 3 Dropdown (Profil Pengunjung) -->
+                <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-widest mb-2">Profil Pengunjung</p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                    {{ render_select(form_prediksi.Month) }}
+                    {{ render_select(form_prediksi.Browser) }}
+                    {{ render_select(form_prediksi.TrafficType) }}
+                </div>
+
+                <!-- Tombol Submit -->
                 <button type="submit"
-                    class="w-full mt-4 py-2.5 rounded-lg bg-brand hover:bg-brand-light text-white text-sm font-semibold transition-all hover:shadow-lg hover:shadow-brand/20 flex items-center justify-center gap-2">
+                    class="w-full py-2.5 rounded-lg bg-brand hover:bg-brand-light text-white text-sm font-semibold transition-all hover:shadow-lg hover:shadow-brand/20 flex items-center justify-center gap-2">
                     <i class="fas fa-bolt text-xs"></i> Prediksi Sekarang
                 </button>
             </form>
 
-            {% if result %}
+            <!--
+            Bagian Output Prediksi Manual (LR)
+            Ditampilkan setelah form di-submit dan server mengembalikan variabel 'results'
+            Warna: hijau (emerald) untuk "Akan Membeli", merah untuk "Tidak Membeli"
+            -->
+            {% if results %}
             <div id="hasil-prediksi" class="mt-5 animate-slide-up">
                 <p class="text-[11px] font-medium text-gray-400 uppercase tracking-widest text-center mb-3">Hasil Prediksi</p>
-                {% if 'Akan' in result %}
-                <div class="rounded-xl p-5 bg-emerald-500/10 border border-emerald-500/20 text-center">
-                    <p class="text-2xl font-bold text-emerald-400">{{ result }}</p>
-                    <p class="text-sm text-emerald-400/70 mt-1">Probabilitas: <strong>{{ (prob * 100)|round(2) }}%</strong></p>
+                {% for key, r in results.items() %}
+                <!-- Kartu hasil — background hijau/merah sesuai prediksi -->
+                <div class="rounded-xl p-5 text-center {% if 'Akan' in r.hasil %}bg-emerald-500/10 border border-emerald-500/20{% else %}bg-red-500/10 border border-red-500/20{% endif %}">
+                    <p class="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-2">{{ r.label }}</p>
+
+                    <!-- Prediksi: "Akan Membeli" atau "Tidak Membeli" -->
+                    <p class="text-[10px] font-medium text-gray-500 uppercase tracking-wider mt-3 mb-1">Prediksi</p>
+                    <p class="text-2xl font-bold {% if 'Akan' in r.hasil %}text-emerald-400{% else %}text-red-400{% endif %}">{{ r.hasil }}</p>
+
+                    <!--
+                    Tingkat Keyakinan Model — Progress Bar Horizontal
+                    Bar terisi sesuai nilai confidence (0-100%).
+                    Warna bar: brand (ungu/indigo) — warna solid yang meyakinkan.
+                    Label di atas bar menampilkan persentase + badge kategori.
+                    -->
+                    <div class="mt-4 pt-3 border-t {% if 'Akan' in r.hasil %}border-emerald-500/20{% else %}border-red-500/20{% endif %}">
+                        <!-- Label + Persentase di atas progress bar -->
+                        <div class="flex items-center justify-between mb-2">
+                            <p class="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Tingkat Keyakinan Model</p>
+                            <span class="text-sm font-bold
+                                {% if r.confidence >= 0.75 %}text-brand-light
+                                {% elif r.confidence >= 0.60 %}text-yellow-400
+                                {% else %}text-red-400{% endif %}">
+                                {{ (r.confidence * 100)|round(2) }}%
+                            </span>
+                        </div>
+
+                        <!-- Progress Bar -->
+                        <div class="w-full h-2.5 bg-surface-4 rounded-full overflow-hidden">
+                            <div class="h-full rounded-full transition-all duration-700 ease-out
+                                {% if r.confidence >= 0.75 %}bg-gradient-to-r from-brand to-brand-light
+                                {% elif r.confidence >= 0.60 %}bg-gradient-to-r from-yellow-500 to-yellow-400
+                                {% else %}bg-gradient-to-r from-red-500 to-red-400{% endif %}"
+                                style="width: {{ (r.confidence * 100)|round(2) }}%">
+                            </div>
+                        </div>
+
+                        <!-- Badge label kepercayaan (Sangat Tinggi/Tinggi/Sedang/Rendah) -->
+                        <div class="mt-2 text-center">
+                            <span class="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider
+                                {% if r.confidence_label == 'Sangat Tinggi' %}bg-brand/20 text-brand-light
+                                {% elif r.confidence_label == 'Tinggi' %}bg-brand/15 text-brand-light/80
+                                {% elif r.confidence_label == 'Sedang' %}bg-yellow-500/15 text-yellow-400
+                                {% else %}bg-red-500/15 text-red-400{% endif %}">
+                                {{ r.confidence_label }}
+                            </span>
+                        </div>
+                    </div>
                 </div>
-                {% else %}
-                <div class="rounded-xl p-5 bg-red-500/10 border border-red-500/20 text-center">
-                    <p class="text-2xl font-bold text-red-400">{{ result }}</p>
-                    <p class="text-sm text-red-400/70 mt-1">Probabilitas: <strong>{{ (prob * 100)|round(2) }}%</strong></p>
-                </div>
-                {% endif %}
+                {% endfor %}
             </div>
+            <!-- Tampilkan error jika validasi form gagal -->
             {% elif error %}
             <div class="mt-5 rounded-xl p-4 bg-red-500/10 border border-red-500/20 text-center animate-slide-up">
                 <p class="text-sm text-red-400">{{ error }}</p>
@@ -140,20 +306,31 @@
             {% endif %}
         </div>
 
-        <!-- CSV Upload Card -->
+        <!--
+        ============================================================
+        KARTU 2: Form Upload CSV
+        ============================================================
+        Mendukung 3 mode prediksi: RF (25 fitur), LR (8 fitur), atau keduanya.
+        Radio button menggunakan pattern "hidden peer" (input disembunyikan,
+        label di-style via peer-checked). File CSV harus 17 kolom (RAW_FEATURE_COLS).
+        -->
         <div class="bg-surface-2 border border-white/[0.06] rounded-xl p-6 mb-4 animate-fade-in">
             <h2 class="text-sm font-semibold text-white mb-1 flex items-center gap-2">
                 <i class="fas fa-file-arrow-up text-brand text-xs"></i>
                 Prediksi via CSV
             </h2>
+            <!-- Daftar 17 kolom wajib yang harus ada di CSV -->
             <p class="text-xs text-gray-500 mb-4">
-                Kolom: BounceRates, Administrative_Duration, ProductRelated, ProductRelated_Duration, Administrative, ExitRates, PageValues
+                Kolom wajib: Administrative, Administrative_Duration, Informational, Informational_Duration,
+                ProductRelated, ProductRelated_Duration, BounceRates, ExitRates, PageValues, SpecialDay,
+                Month, OperatingSystems, Browser, Region, TrafficType, VisitorType, Weekend
             </p>
 
+            <!-- Form dikirim ke POST /upload dengan encoding multipart (untuk file) -->
             <form id="uploadForm" method="POST" action="{{ url_for('predict_csv') }}" enctype="multipart/form-data">
-                <!-- CSRF Token dari WTForms -->
                 {{ form_upload.hidden_tag() }}
 
+                <!-- Input File CSV -->
                 <div>
                     <label for="file" class="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">File CSV</label>
                     <input type="file" id="file" name="file" accept=".csv"
@@ -162,39 +339,96 @@
                     <p class="text-red-400 text-[11px] mt-1">{{ form_upload.file.errors[0] }}</p>
                     {% endif %}
                 </div>
+
+                <!--
+                Pemilihan Model — Radio button dengan pattern "hidden peer"
+                Input radio asli disembunyikan, label <span> berubah style
+                saat radio di-check (peer-checked:border-brand, dll)
+                -->
+                <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-widest mb-2 mt-4">Pilih Model</p>
+                <div class="flex flex-wrap gap-2 mb-4">
+                    {% for value, label in form_upload.model_choice.choices %}
+                    <label class="cursor-pointer">
+                        <!-- Radio asli disembunyikan — diklik via label -->
+                        <input type="radio" name="model_choice" value="{{ value }}"
+                            {% if form_upload.model_choice.data == value %}checked{% endif %}
+                            class="hidden peer">
+                        <!-- Tampilan pill — berubah warna saat peer (radio) di-check -->
+                        <span class="inline-block px-3 py-1.5 rounded-lg text-xs font-medium border border-white/[0.08] text-gray-400 peer-checked:border-brand peer-checked:text-brand peer-checked:bg-brand/10 transition">
+                            {{ label }}
+                        </span>
+                    </label>
+                    {% endfor %}
+                </div>
+
+                <!-- Tombol Upload — style outline (tidak solid) untuk membedakan dari form manual -->
                 <button type="submit"
-                    class="w-full mt-4 py-2.5 rounded-lg bg-transparent border border-white/[0.08] hover:border-brand/50 hover:bg-brand/5 text-brand text-sm font-semibold transition-all flex items-center justify-center gap-2">
+                    class="w-full py-2.5 rounded-lg bg-transparent border border-white/[0.08] hover:border-brand/50 hover:bg-brand/5 text-brand text-sm font-semibold transition-all flex items-center justify-center gap-2">
                     <i class="fas fa-upload text-xs"></i> Upload dan Prediksi
                 </button>
             </form>
 
+            <!-- Pesan Error CSV (file kosong, kolom hilang, dll) -->
             {% if csv_error %}
             <div class="mt-5 rounded-xl p-4 bg-red-500/10 border border-red-500/20 text-center animate-slide-up">
                 <p class="text-sm text-red-400">{{ csv_error }}</p>
             </div>
             {% endif %}
 
+            <!--
+            ============================================================
+            Hasil Prediksi CSV
+            Ditampilkan setelah upload berhasil dan server mengembalikan
+            variabel csv_results, csv_columns, dan csv_summary
+
+            Komponen:
+            1. Ringkasan statistik (grid kartu: total, beli, tidak beli)
+            2. Link download CSV hasil prediksi
+            3. Tabel data lengkap dengan scroll horizontal
+            ============================================================
+            -->
             {% if csv_results %}
             <div id="hasil-csv" class="mt-5 animate-slide-up">
                 <p class="text-[11px] font-medium text-gray-400 uppercase tracking-widest text-center mb-3">Hasil Prediksi CSV</p>
 
-                <!-- Summary -->
-                <div class="grid grid-cols-3 gap-2 mb-4">
-                    <div class="bg-surface-3 border border-white/[0.06] rounded-xl p-3 text-center">
+                <!--
+                Ringkasan Statistik — Grid kartu
+                Menampilkan jumlah total baris, dan untuk setiap model:
+                - Jumlah prediksi "Akan Membeli" (hijau)
+                - Jumlah prediksi "Tidak Membeli" (merah)
+                Kartu total menggunakan col-span-3 jika kedua model aktif (mode "both")
+                -->
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+                    <!-- Kartu Total Baris -->
+                    <div class="bg-surface-3 border border-white/[0.06] rounded-xl p-3 text-center {% if csv_summary.get('rf_beli') is not none and csv_summary.get('lr_beli') is not none %}sm:col-span-3{% else %}sm:col-span-1{% endif %}">
                         <span class="block text-2xl font-bold text-white">{{ csv_summary.total }}</span>
                         <span class="block text-[10px] text-gray-500 uppercase tracking-wider mt-0.5">Total</span>
                     </div>
+                    <!-- Kartu RF (Random Forest) — tampil jika model rf atau both -->
+                    {% if csv_summary.get('rf_beli') is not none %}
                     <div class="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-center">
-                        <span class="block text-2xl font-bold text-emerald-400">{{ csv_summary.beli }}</span>
-                        <span class="block text-[10px] text-emerald-400/60 uppercase tracking-wider mt-0.5">Beli</span>
+                        <span class="block text-2xl font-bold text-emerald-400">{{ csv_summary.rf_beli }}</span>
+                        <span class="block text-[10px] text-emerald-400/60 uppercase tracking-wider mt-0.5">RF Beli</span>
                     </div>
                     <div class="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-center">
-                        <span class="block text-2xl font-bold text-red-400">{{ csv_summary.tidak }}</span>
-                        <span class="block text-[10px] text-red-400/60 uppercase tracking-wider mt-0.5">Tidak</span>
+                        <span class="block text-2xl font-bold text-red-400">{{ csv_summary.rf_tidak }}</span>
+                        <span class="block text-[10px] text-red-400/60 uppercase tracking-wider mt-0.5">RF Tidak</span>
                     </div>
+                    {% endif %}
+                    <!-- Kartu LR (Logistic Regression) — tampil jika model lr atau both -->
+                    {% if csv_summary.get('lr_beli') is not none %}
+                    <div class="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-center">
+                        <span class="block text-2xl font-bold text-emerald-400">{{ csv_summary.lr_beli }}</span>
+                        <span class="block text-[10px] text-emerald-400/60 uppercase tracking-wider mt-0.5">LR Beli</span>
+                    </div>
+                    <div class="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-center">
+                        <span class="block text-2xl font-bold text-red-400">{{ csv_summary.lr_tidak }}</span>
+                        <span class="block text-[10px] text-red-400/60 uppercase tracking-wider mt-0.5">LR Tidak</span>
+                    </div>
+                    {% endif %}
                 </div>
 
-                <!-- Download -->
+                <!-- Link Download CSV Hasil Prediksi -->
                 <div class="text-center mb-4">
                     <a href="{{ url_for('download_csv') }}"
                         class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium text-brand border border-white/[0.08] hover:border-brand/50 hover:bg-brand/5 transition">
@@ -202,9 +436,16 @@
                     </a>
                 </div>
 
-                <!-- Table -->
+                <!--
+                Tabel Hasil Prediksi
+                - Scroll horizontal untuk menampung 17+ kolom
+                - Kolom prediksi (RF_Prediksi, LR_Prediksi) diberi warna:
+                  hijau (emerald) untuk "Akan Membeli", merah untuk "Tidak Membeli"
+                - Nomor baris otomatis dari loop.index Jinja2
+                -->
                 <div class="table-scroll overflow-x-auto rounded-xl border border-white/[0.06]">
                     <table class="w-full text-xs">
+                        <!-- Header Tabel — nama kolom dari csv_columns -->
                         <thead>
                             <tr class="bg-surface-3">
                                 <th class="px-3 py-2.5 text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wider">No</th>
@@ -213,12 +454,18 @@
                                 {% endfor %}
                             </tr>
                         </thead>
+                        <!-- Body Tabel — setiap baris dari csv_results -->
                         <tbody class="divide-y divide-white/[0.04]">
                             {% for row in csv_results %}
                             <tr class="hover:bg-white/[0.02] transition-colors">
+                                <!-- Nomor baris (dimulai dari 1) -->
                                 <td class="px-3 py-2 text-gray-400">{{ loop.index }}</td>
                                 {% for col in csv_columns %}
-                                <td class="px-3 py-2 whitespace-nowrap {% if col == 'Hasil_Prediksi' %}font-semibold {{ 'text-emerald-400' if row[col] == 'Akan Membeli' else 'text-red-400' }}{% else %}text-gray-300{% endif %}">
+                                <!-- Kolom prediksi diberi warna sesuai hasil -->
+                                <td class="px-3 py-2 whitespace-nowrap
+                                    {% if col in ('RF_Prediksi', 'LR_Prediksi') %}font-semibold {{ 'text-emerald-400' if row[col] == 'Akan Membeli' else 'text-red-400' }}
+                                    {% elif col in ('RF_Kepercayaan', 'LR_Kepercayaan') %}font-medium {{ 'text-emerald-400/80' if 'Tinggi' in row[col] else ('text-yellow-400' if 'Sedang' in row[col] else 'text-red-400/80') }}
+                                    {% else %}text-gray-300{% endif %}">
                                     {{ row[col] }}
                                 </td>
                                 {% endfor %}
@@ -233,39 +480,30 @@
 
     </main>
 
-    <!-- Footer -->
+    <!--
+    ============================================================
+    Footer — Kredit dataset dan teknologi
+    ============================================================
+    -->
     <footer class="text-center py-5 text-xs text-gray-600 border-t border-white/[0.04]">
         Dataset: <a href="https://archive.ics.uci.edu/dataset/468/online+shoppers+purchasing+intention+dataset" target="_blank" class="text-brand hover:underline">UCI ML Repository</a>
         &middot; Built with Flask &amp; scikit-learn
     </footer>
 
+    <!--
+    Script: Auto-scroll ke hasil prediksi
+    Setelah halaman dimuat, jika ada elemen hasil (manual atau CSV),
+    scroll otomatis ke elemen tersebut agar user langsung melihat hasil.
+    Prioritas: hasil CSV dulu, baru hasil manual.
+    -->
     <script>
         window.addEventListener('DOMContentLoaded', () => {
-            // Auto-scroll ke hasil prediksi jika ada
-            const hasilPrediksi = document.getElementById('hasil-prediksi');
-            const hasilCSV = document.getElementById('hasil-csv');
-            const target = hasilCSV || hasilPrediksi;
+            const hasilPrediksi = document.getElementById('hasil-prediksi');  // Hasil manual
+            const hasilCSV = document.getElementById('hasil-csv');            // Hasil CSV
+            const target = hasilCSV || hasilPrediksi;  // Prioritaskan CSV
             if (target) {
                 target.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
-
-            // Session storage untuk menyimpan input form
-            const form = document.getElementById('prediksiForm');
-            if (!form) return;
-            const inputs = form.querySelectorAll('input[type="number"]');
-
-            inputs.forEach(input => {
-                const saved = sessionStorage.getItem(input.name);
-                if (saved !== null && input.value === '') {
-                    input.value = saved;
-                }
-            });
-
-            inputs.forEach(input => {
-                input.addEventListener('input', () => {
-                    sessionStorage.setItem(input.name, input.value);
-                });
-            });
         });
     </script>
 
