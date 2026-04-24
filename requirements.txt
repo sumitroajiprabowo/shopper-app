@@ -1,13 +1,13 @@
 # === Dependensi Utama Aplikasi ===
-Flask>=3.1.0
-Flask-WTF>=1.2.0
-WTForms>=3.2.0
-joblib>=1.5.0
-numpy>=2.0.0
-pandas>=2.0.0
-scikit-learn>=1.7.0
+Flask==3.1.3
+Flask-WTF==1.3.0
+WTForms==3.2.1
+joblib==1.5.3
+numpy>=1.26.4,<3.0
+pandas>=2.1.0,<4.0
+scikit-learn>=1.5.0,<2.0
 
 # === Dependensi Development & Testing ===
-pytest>=9.0.0
-coverage>=7.0.0
-black>=24.0.0
+pytest==9.0.3
+coverage==7.13.5
+black==26.3.1
